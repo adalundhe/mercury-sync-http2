@@ -1,7 +1,6 @@
 import asyncio
 import ssl
 import time
-import traceback
 import uuid
 from collections import defaultdict
 from typing import (
@@ -688,6 +687,7 @@ class MercuryHTTP2Client:
                 cookies.update(cookies_data)
 
             self._connections.append(connection)
+            self._pipes.append(pipe)
 
             timings['read_end'] = time.monotonic()
 
@@ -704,9 +704,12 @@ class MercuryHTTP2Client:
             ), False, timings
 
         except Exception as request_exception:
-            print(traceback.format_exc())
             self._connections.append(
                 HTTP2Connection()
+            )
+
+            self._pipes.append(
+                HTTP2Pipe(self._max_concurrency)
             )
 
             if isinstance(request_url, str):
