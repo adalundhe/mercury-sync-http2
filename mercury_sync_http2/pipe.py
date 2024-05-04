@@ -19,7 +19,7 @@ from .events import (
     StreamReset,
     WindowUpdated,
 )
-from .fast_hpack import Decoder, Encoder
+from .fast_hpack import Decoder, Encoder, HeaderTable
 from .frames import FrameBuffer
 from .frames.types.base_frame import Frame
 from .protocols import HTTP2Connection
@@ -41,10 +41,12 @@ class HTTP2Pipe:
         self.connected = False
         self.concurrency = concurrency
 
-        self._encoder = Encoder()
-        self._decoder = Decoder()
+        header_table = HeaderTable()
+
+        self._encoder = Encoder(header_table)
+        self._decoder = Decoder(header_table)
         self._init_sent = False
-        self.stream_id = None
+        self.stream_id = stream_id
         self._data_to_send = b''
         self.lock = asyncio.Lock()
 
@@ -167,7 +169,7 @@ class HTTP2Pipe:
 
     def send_request_headers(
         self,
-        headers: List[bytes],
+        headers: List[Tuple[bytes, bytes]],
         data: Optional[bytes],
         connection: HTTP2Connection
     ):
@@ -176,8 +178,16 @@ class HTTP2Pipe:
         headers_frame.flags.add('END_HEADERS')
 
         end_stream = data is None
+
+        encoded_headers = self._encoder.encode(headers)
+        encoded_headers = [
+            encoded_headers[i:i+self.remote_settings.max_frame_size]
+            for i in range(
+                0, len(encoded_headers), self.remote_settings.max_frame_size
+            )
+        ]
     
-        headers_frame.data = headers[0]
+        headers_frame.data = encoded_headers[0]
         if end_stream:
             headers_frame.flags.add('END_STREAM')
 
@@ -257,9 +267,7 @@ class HTTP2Pipe:
                             new_event.additional_data = frame.additional_data
 
                         frames = []
-
-                        status_code = status_code or 429
-                        error = Exception(f'Connection - {self.stream_id} err: {str(new_event)}')
+                        done = True
 
                     elif frame.type == 0x01:
                         # HEADERS
@@ -273,10 +281,10 @@ class HTTP2Pipe:
                             error = headers_read_err
 
                         for k, v in headers:
-                            if k == b":status":
-                                status_code = int(v.decode("ascii", errors="ignore"))
-                            elif k.startswith(b":"):
-                                headers_dict[k.strip(b':')] = v
+                            if k == ":status":
+                                status_code = int(v)
+                            elif k.startswith(":"):
+                                headers_dict[k.strip(':')] = v
                             else:
                                 headers_dict[k] = v
 
@@ -295,7 +303,7 @@ class HTTP2Pipe:
                         reset_event.error_code = ErrorCodes(frame.error_code)
 
                         status_code = 400
-                        error = Exception(f'Connection - {self.stream_id} err: {str(reset_event)}')
+                        error = Exception(f'Connection - {self.stream_id} - err: {str(reset_event)}')
 
                     elif frame.type == 0x04:
                         # SETTINGS
@@ -408,7 +416,7 @@ class HTTP2Pipe:
 
                 except Exception as e:
                     status_code = status_code or 400
-                    error = Exception(f'Connection {self.stream_id} err- {str(e)}')
+                    error = Exception(f'Connection - {self.stream_id} err- {str(e)}')
 
                 if frames:
                     for f in frames:
@@ -422,7 +430,11 @@ class HTTP2Pipe:
                 conn_increment = self._inbound_flow_control_window_manager.process_bytes(amount)
 
                 if conn_increment:
-                    self.write_window_update_frame(0, conn_increment)
+                    self.write_window_update_frame(
+                        connection,
+                        stream_id=0, 
+                        window_increment=conn_increment
+                    )
 
                 if event.data is None:
                     event.data = b''
@@ -435,7 +447,7 @@ class HTTP2Pipe:
         return (
             status_code,
             headers_dict,
-            body_data,
+            bytes(body_data),
             error
         )
     

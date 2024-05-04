@@ -1,16 +1,16 @@
 from typing import Dict, Iterator, List, Literal, Optional, Tuple, Union
-from urllib.parse import ParseResult, urlencode, urlparse
+from urllib.parse import urlencode, urlparse
 
 import orjson
 from pydantic import BaseModel, StrictBytes, StrictInt, StrictStr
 
 from .types import HTTPCookie, HTTPEncodableValue
+from .url import URL
 
 NEW_LINE = '\r\n'
 
 class HTTP2Request(BaseModel):
     url: StrictStr
-    parsed: ParseResult
     method: Literal[
         "GET", 
         "POST",
@@ -37,43 +37,17 @@ class HTTP2Request(BaseModel):
     def parse_url(self):
         return urlparse(self.url)
 
-    @property
-    def size(self):
-        if self.encoded_data:
-            return len(self.encoded_data)
-
-        else:
-            return 0
-
-    @property
-    def data(self):
-        return self._data
-
-    @data.setter
-    def data(self, value):
-        self._data = value
-        self.encoded_data = None
-
-    @property
-    def headers(self):
-        return self._headers
-
-    @headers.setter
-    def headers(self, value: Dict[str, str]):
-        self._headers = value
-        self._header_items = list(value.items())
-        self.encoded_headers = None
-
     def encode_data(self):
 
         encoded_data: Optional[bytes] = None
-        if self._data:
-            if isinstance(self._data, Iterator):
+        size = 0
+        if self.data:
+            if isinstance(self.data, Iterator):
                 chunks = []
-                for chunk in self._data:
+                for chunk in self.data:
                     chunk_size = hex(len(chunk)).replace("0x", "") + NEW_LINE
                     encoded_chunk = chunk_size.encode() + chunk + NEW_LINE.encode()
-                    self.size += len(encoded_chunk)
+                    size += len(encoded_chunk)
                     chunks.append(encoded_chunk)
 
                 self.is_stream = True
@@ -81,38 +55,42 @@ class HTTP2Request(BaseModel):
 
             else:
 
-                if isinstance(self._data, dict):
+                if isinstance(self.data, dict):
                     encoded_data = orjson.dumps(
-                        self._data
+                        self.data
                     )
 
-                elif isinstance(self._data, tuple):
+                elif isinstance(self.data, BaseModel):
+                    return self.data.model_dump_json().encode()
+
+                elif isinstance(self.data, tuple):
                     encoded_data = urlencode(
-                        self._data
+                        self.data
                     ).encode()
 
-                elif isinstance(self._data, str):
-                    encoded_data = self._data.encode()
-
-        self.encoded_data = encoded_data
+                elif isinstance(self.data, str):
+                    encoded_data = self.data.encode()
 
         return encoded_data
 
-    def encode_headers(self) -> List[Tuple[bytes, bytes]]:
+    def encode_headers(
+        self,
+        url: URL
+    ) -> List[Tuple[bytes, bytes]]:
     
         encoded_headers = [
-            (b":method", self.method),
-            (b":authority", self.parsed.hostname),
-            (b":scheme", self.parsed.scheme),
-            (b":path", self.parsed.path),
+            (b":method", self.method.encode()),
+            (b":authority", url.hostname.encode()),
+            (b":scheme", url.scheme.encode()),
+            (b":path", url.path.encode()),
         ]
 
         encoded_headers.extend([
             (
-                k.lower(), 
-                v
+                k.lower().encode(), 
+                v.encode()
             )
-            for k, v in self._headers.items()
+            for k, v in self.headers.items()
             if k.lower()
             not in (
                 b"host",

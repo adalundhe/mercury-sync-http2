@@ -31,7 +31,7 @@ class HTTP2Response(BaseModel):
     ]=None
     status: Optional[StrictInt]=None
     status_message: Optional[StrictStr]=None
-    headers: Dict[StrictBytes, StrictBytes]={}
+    headers: Dict[StrictStr, StrictStr]={}
     content: StrictBytes=b''
     timings: Dict[StrictStr, StrictFloat]={}
 

@@ -1,6 +1,7 @@
-import asyncio
 from weakref import ref
-from werkflow_http.connections.http.protocols.shared import Reader
+
+from mercury_sync_http2.protocols.shared import Reader
+
 from .protocol import TCPProtocol
 
 
