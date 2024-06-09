@@ -26,6 +26,7 @@ class TCPConnection:
     async def create_http2(self, hostname=None, socket_config=None, ssl: Optional[SSLContext] = None, ssl_timeout: int = SSL_HANDSHAKE_TIMEOUT):
         # this does the same as loop.open_connection(), but TLS upgrade is done
         # manually after connection be established.
+ 
         self.loop = asyncio.get_event_loop()
 
         family, type_, proto, _, address = socket_config
@@ -36,13 +37,13 @@ class TCPConnection:
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         await self.loop.run_in_executor(None, self.socket.connect, address)
-        
+
         self.socket.setblocking(False)
 
         reader = Reader(limit=HTTP2_LIMIT, loop=self.loop)
 
         protocol = TLSProtocol(reader, loop=self.loop)
-
+        
         self.transport, _ = await self.loop.create_connection(
             lambda: protocol, 
             sock=self.socket,
@@ -65,6 +66,7 @@ class TCPConnection:
         self.transport.pause_reading()
 
         self.transport.set_protocol(ssl_protocol)
+
         await self.loop.run_in_executor(None, ssl_protocol.connection_made, self.transport)
         self.transport.resume_reading()
 
@@ -78,7 +80,7 @@ class TCPConnection:
         self._writer = Writer(self.transport, ssl_protocol, reader, self.loop) # update writer
 
         return reader, self._writer
-
+        
     async def close(self):
 
         try:

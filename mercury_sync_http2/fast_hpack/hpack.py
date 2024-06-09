@@ -4634,11 +4634,8 @@ class Encoder:
         'table_size_changes'
     )
 
-    def __init__(
-        self,
-        header_table: HeaderTable
-    ):
-        self.header_table = header_table
+    def __init__(self):
+        self.header_table = HeaderTable()
         self.huffman_coder = HuffmanEncoder()
         self.table_size_changes = []
 
@@ -4783,7 +4780,6 @@ class Decoder:
     """
     def __init__(
             self, 
-            header_table: HeaderTable,
             max_header_list_size=2**16
         ):
         #: The maximum decompressed size we will allow for any single header
@@ -4800,7 +4796,7 @@ class Decoder:
         #: Defaults to 64kB.
         #:
         #: .. versionadded:: 2.3.0
-        self.header_table = header_table
+        self.header_table = HeaderTable()
         self.max_header_list_size = max_header_list_size
 
         #: Maximum allowed header table size.

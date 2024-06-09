@@ -1,11 +1,13 @@
-import aiodns
 import socket
-from ipaddress import ip_address, IPv4Address
-from urllib.parse import urlparse
 from asyncio.events import get_event_loop
-from typing import List, Union, Tuple
-from .types import SocketProtocols, SocketTypes
+from ipaddress import IPv4Address, ip_address
+from typing import List, Tuple, Union
+from urllib.parse import urlparse
+
+import aiodns
+
 from .ip_address_info import IpAddressInfo
+from .types import SocketProtocols, SocketTypes
 
 
 class URL:
@@ -30,8 +32,8 @@ class URL:
         self,
         url: str, 
         port: int=80,
-        family: SocketTypes=SocketTypes.DEFAULT, 
-        protocol: SocketProtocols=SocketProtocols.DEFAULT
+        family: SocketTypes=SocketTypes.HTTP2, 
+        protocol: SocketProtocols=SocketProtocols.HTTP2
     ) -> None:
         
         self.resolver = aiodns.DNSResolver()

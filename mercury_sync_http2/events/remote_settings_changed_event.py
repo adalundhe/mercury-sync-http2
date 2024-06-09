@@ -1,4 +1,4 @@
-from mercury_sync_http2.streams import ChangedSetting, SettingCodes
+from mercury_sync_http2.settings import ChangedSetting, SettingCodes
 
 from .base_event import BaseEvent
 
